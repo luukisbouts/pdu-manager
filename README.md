@@ -16,6 +16,17 @@ Two front-ends share the same driver and storage code:
 
 Both publish as a **single self-contained exe** (no .NET install needed). Windows only (credential encryption uses DPAPI).
 
+## Download
+
+Ready-to-run exes (64-bit Windows 10/11, nothing to install) are attached to the
+[latest release](https://github.com/luukisbouts/Argus-PDU-Manager/releases/latest):
+
+- `PduManager-Desktop-win-x64.exe` — desktop app
+- `PduManager-Web-win-x64.exe` — web app (opens http://localhost:5080)
+
+Windows SmartScreen may warn about an unknown publisher because the exes are not code-signed:
+choose *More info → Run anyway*. Put the exe in a normal, writable folder; it saves `config.json` next to itself.
+
 ## Features
 
 - Several PDUs in one list; per PDU: total load (A), temperature, humidity and the PDU's own alarm status
