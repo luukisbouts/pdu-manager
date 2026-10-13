@@ -1,0 +1,20 @@
+# Build output
+bin/
+obj/
+publish/
+publish-web/
+
+# User data: PDU addresses and (DPAPI-encrypted) logins. Never commit.
+config.json
+config-test.json
+
+# Pages saved from a real PDU while reverse-engineering (contain site-specific names/IPs)
+discovery/
+
+# IDE / local tooling
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.claude/

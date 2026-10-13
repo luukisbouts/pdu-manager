@@ -1,0 +1,27 @@
+<Window x:Class="PduManager.Views.AddPduWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Add PDU" Width="360" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="16">
+        <TextBlock Text="Name"/>
+        <TextBox x:Name="NameBox" Margin="0,2,0,8"/>
+        <TextBlock Text="Host / IP"/>
+        <TextBox x:Name="HostBox" Margin="0,2,0,8"/>
+        <TextBlock Text="Port"/>
+        <TextBox x:Name="PortBox" Text="80" Margin="0,2,0,8"/>
+        <TextBlock Text="Username"/>
+        <TextBox x:Name="UserBox" Margin="0,2,0,8"/>
+        <TextBlock Text="Password"/>
+        <PasswordBox x:Name="PassBox" Margin="0,2,0,8"/>
+        <TextBlock x:Name="ResultText" TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <TextBlock x:Name="InfoText" TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <TextBlock Text="Credentials are encrypted with Windows DPAPI for your user account."
+                   Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,8"/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button x:Name="TestBtn" Content="Test connection" Padding="10,4" Margin="0,0,8,0" Click="Test_Click"/>
+            <Button x:Name="OkBtn" Content="Add" Padding="16,4" Margin="0,0,8,0" IsDefault="True" Click="Ok_Click"/>
+            <Button Content="Cancel" Padding="10,4" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

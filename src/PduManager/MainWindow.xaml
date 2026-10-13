@@ -1,0 +1,153 @@
+<Window x:Class="PduManager.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:PduManager.ViewModels"
+        Title="PDU Manager" Height="560" Width="980">
+    <Window.DataContext>
+        <vm:MainVm/>
+    </Window.DataContext>
+    <DockPanel>
+        <Menu DockPanel.Dock="Top">
+            <MenuItem Header="_File">
+                <MenuItem Header="_Add PDU…" Command="{Binding AddPduCommand}"/>
+                <MenuItem Header="_Edit selected PDU… (name, address, login)" Command="{Binding EditPduCommand}" IsEnabled="{Binding HasSelection}"/>
+                <MenuItem Header="_Remove selected PDU" Command="{Binding RemovePduCommand}" IsEnabled="{Binding HasSelection}"/>
+                <Separator/>
+                <MenuItem Header="_Refresh now" Command="{Binding RefreshCommand}"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Command="{Binding ExitCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Outlets" IsEnabled="{Binding HasSelection}">
+                <MenuItem Header="All ON" Command="{Binding AllOnCommand}"/>
+                <MenuItem Header="All OFF" Command="{Binding AllOffCommand}"/>
+                <Separator/>
+                <MenuItem Header="Ticked outlets: ON" Command="{Binding SelectedOnCommand}"/>
+                <MenuItem Header="Ticked outlets: OFF" Command="{Binding SelectedOffCommand}"/>
+                <MenuItem Header="Ticked outlets: power-cycle (ON/OFF)" Command="{Binding SelectedCycleCommand}"/>
+                <Separator/>
+                <MenuItem Header="Rename outlets &amp; set delays…" Command="{Binding OutletSettingsCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Settings" IsEnabled="{Binding HasSelection}">
+                <MenuItem Header="Threshold values (current, voltage, temperature, humidity)…" Command="{Binding ThresholdsCommand}"/>
+                <MenuItem Header="Network (IP, DHCP, DNS)…" Command="{Binding NetworkCommand}"/>
+                <MenuItem Header="System (name, administrator, location)…" Command="{Binding SystemInfoCommand}"/>
+                <MenuItem Header="Change PDU login…" Command="{Binding ChangeLoginCommand}"/>
+                <Separator/>
+                <MenuItem Header="Open PDU web interface in browser" Command="{Binding OpenWebInterfaceCommand}"/>
+            </MenuItem>
+            <MenuItem Header="_Help">
+                <MenuItem Header="_About" Command="{Binding AboutCommand}"/>
+            </MenuItem>
+        </Menu>
+
+        <Grid Margin="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="220"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0" Margin="0,0,8,0">
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Add PDU…" Padding="10,4" Margin="0,0,6,0" Command="{Binding AddPduCommand}"/>
+                    <Button Content="Edit…" Padding="10,4" Margin="0,0,6,0" Command="{Binding EditPduCommand}"/>
+                    <Button Content="Remove" Padding="10,4" Command="{Binding RemovePduCommand}"/>
+                </StackPanel>
+                <ListBox ItemsSource="{Binding Pdus}" SelectedItem="{Binding Selected}" DisplayMemberPath="Name"/>
+            </DockPanel>
+
+            <DockPanel Grid.Column="1" DataContext="{Binding Selected}">
+                <StackPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                    <TextBlock Text="{Binding Status}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding Readings}" Margin="0,2,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="Black"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Alarm}" Value="True">
+                                        <Setter Property="Foreground" Value="Red"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <TextBlock Text="{Binding LastEvent}" Foreground="DarkOrange" Margin="0,4,0,0"/>
+                </StackPanel>
+                <DataGrid ItemsSource="{Binding Outlets}" AutoGenerateColumns="False" CanUserAddRows="False"
+                          HeadersVisibility="Column" GridLinesVisibility="Horizontal" RowHeight="30"
+                          SelectionMode="Single">
+                    <DataGrid.Columns>
+                        <DataGridCheckBoxColumn Header="Sel" Binding="{Binding IsSelected, UpdateSourceTrigger=PropertyChanged}" Width="40"/>
+                        <DataGridTextColumn Header="#" Binding="{Binding Index}" IsReadOnly="True" Width="30"/>
+                        <DataGridTextColumn Header="Outlet" Binding="{Binding Name}" IsReadOnly="True" Width="*"/>
+                        <DataGridTemplateColumn Header="Power" Width="55">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding StateText}" FontWeight="Bold" VerticalAlignment="Center" Margin="6,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="Gray"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsOn}" Value="True">
+                                                        <Setter Property="Foreground" Value="Green"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsOn}" Value="False">
+                                                        <Setter Property="Foreground" Value="Red"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="" Width="170">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="{Binding ToggleText}" Command="{Binding ToggleCommand}" Margin="2" Width="70"/>
+                                        <Button Content="Cycle" Command="{Binding CycleCommand}" Margin="2" Width="60"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTextColumn Header="Monitor IP / host" Width="150"
+                                            Binding="{Binding BoundIp, UpdateSourceTrigger=LostFocus}"/>
+                        <DataGridTemplateColumn Header="Device" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DeviceText}" FontWeight="Bold" VerticalAlignment="Center" Margin="6,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="Gray"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DeviceUp}" Value="True">
+                                                        <Setter Property="Foreground" Value="Green"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding DeviceUp}" Value="False">
+                                                        <Setter Property="Foreground" Value="Red"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                        <DataGridTemplateColumn Header="Auto Power-Off" Width="150">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0">
+                                        <CheckBox IsChecked="{Binding AutoPowerOff, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="Switch this outlet off when the monitored device goes down"/>
+                                        <TextBlock Text="{Binding AutoText}" Foreground="Gray" FontSize="11" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </DockPanel>
+        </Grid>
+    </DockPanel>
+</Window>

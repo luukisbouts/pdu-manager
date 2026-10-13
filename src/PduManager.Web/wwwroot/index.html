@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDU Manager</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --panel: #ffffff; --text: #1b1f24; --muted: #6b7280; --line: #dfe2e7;
+    --accent: #2563eb; --on: #15803d; --off: #dc2626; --warn: #b45309; --hover: #eef2ff;
+    --shadow: 0 8px 28px rgba(0,0,0,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1d2026; --text: #e6e8eb; --muted: #9aa3af; --line: #31363e;
+      --accent: #60a5fa; --on: #4ade80; --off: #f87171; --warn: #fbbf24; --hover: #262b36;
+      --shadow: 0 8px 28px rgba(0,0,0,.6);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, Segoe UI, sans-serif; height: 100vh; display: flex; flex-direction: column; }
+  button, input { font: inherit; color: inherit; }
+  button { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  input[type=text], input[type=password], input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; width: 100%; }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  /* menu bar */
+  #menubar { display: flex; background: var(--panel); border-bottom: 1px solid var(--line); padding: 0 8px; position: relative; z-index: 20; }
+  .menu { position: relative; }
+  .menu > button { border: 0; border-radius: 0; background: none; padding: 9px 12px; }
+  .menu.open > button { background: var(--hover); }
+  .dropdown { display: none; position: absolute; top: 100%; left: 0; min-width: 300px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 0 0 8px 8px; padding: 4px 0; }
+  .menu.open .dropdown { display: block; }
+  .dropdown button { display: block; width: 100%; text-align: left; border: 0; border-radius: 0; padding: 7px 16px; background: none; }
+  .dropdown hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+
+  /* layout */
+  #app { flex: 1; display: flex; gap: 12px; padding: 12px; min-height: 0; }
+  #side { width: 220px; display: flex; flex-direction: column; gap: 8px; }
+  #pdulist { flex: 1; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: auto; padding: 4px; }
+  .pdu { padding: 8px 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .pdu:hover { background: var(--hover); }
+  .pdu.sel { background: var(--accent); color: #fff; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.ok { background: var(--on); } .dot.bad { background: var(--off); }
+  #main { flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px; overflow: auto; }
+  #head { margin-bottom: 10px; }
+  #head .status { font-weight: 600; }
+  #head .readings { color: var(--muted); margin-top: 2px; }
+  #head .readings.alarm { color: var(--off); font-weight: 600; }
+  #empty { color: var(--muted); padding: 30px 0; text-align: center; }
+
+  table { border-collapse: collapse; width: 100%; }
+  th { text-align: left; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  td.num { color: var(--muted); width: 30px; }
+  td .btns { display: flex; gap: 6px; white-space: nowrap; }
+  td input[type=text] { min-width: 130px; }
+  .state { font-weight: 700; } .state.on, .up { color: var(--on); } .state.off, .down { color: var(--off); }
+  .state.unk { color: var(--muted); }
+  .stale td:not(:last-child) { opacity: .55; }
+  .up, .down { font-weight: 700; }
+  td.auto { white-space: nowrap; }
+  .armed { font-size: 12px; color: var(--muted); margin-left: 4px; }
+  .armed.on { color: var(--warn); font-weight: 600; }
+  #hEvents { margin-top: 6px; font-size: 13px; color: var(--warn); }
+
+  /* dialogs */
+  #overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 50; align-items: center; justify-content: center; padding: 16px; }
+  #overlay.show { display: flex; }
+  .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow); width: min(520px, 100%); max-height: 100%; overflow: auto; padding: 18px; }
+  .modal.wide { width: min(640px, 100%); }
+  .modal h2 { margin: 0 0 4px; font-size: 17px; }
+  .modal .note { color: var(--muted); margin: 0 0 12px; }
+  .row { display: grid; grid-template-columns: 170px 1fr; gap: 8px; align-items: center; margin: 6px 0; }
+  .row.check { grid-template-columns: 1fr; }
+  .row input[readonly] { color: var(--muted); }
+  .msg { min-height: 20px; margin: 10px 0; }
+  .msg.err { color: var(--off); }
+  .actions { display: flex; justify-content: flex-end; gap: 8px; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 8px 16px; border-radius: 8px; display: none; z-index: 60; }
+  @media (max-width: 760px) {
+    #app { flex-direction: column; } #side { width: auto; } #pdulist { max-height: 140px; }
+    .row { grid-template-columns: 1fr; } th:nth-child(3), td:nth-child(3) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div id="menubar"></div>
+<div id="app">
+  <div id="side">
+    <div id="pdulist"></div>
+    <div style="display:flex;gap:6px"><button id="btnAdd">Add PDU…</button><button id="btnEdit">Edit…</button><button id="btnRemove">Remove</button></div>
+  </div>
+  <div id="main"></div>
+</div>
+<div id="overlay"><div class="modal" id="modal"></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+// ---------- helpers ----------
+const $ = (s, r = document) => r.querySelector(s);
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'class') e.className = v;
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+    else if (v !== false && v != null) e.setAttribute(k, v === true ? '' : v);
+  }
+  for (const k of kids.flat()) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k));
+  return e;
+}
+async function api(method, path, body) {
+  const res = await fetch('/api' + path, {
+    method,
+    headers: { 'X-PDU-Client': '1', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  const text = await res.text();
+  if (text) { try { data = JSON.parse(text); } catch { data = null; } }
+  if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
+  return data;
+}
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.style.display = 'none', 3500);
+}
+
+// ---------- state ----------
+let pdus = [];
+let selectedId = localStorage.getItem('selectedPdu');
+const ticked = new Set();            // `${pduId}:${outletIndex}`
+const current = () => pdus.find(p => p.id === selectedId) || null;
+
+async function poll() {
+  try { pdus = await api('GET', '/pdus'); }
+  catch (e) { toast('Server not reachable: ' + e.message); return; }
+  if (!current()) selectedId = pdus[0]?.id ?? null;
+  render();
+}
+setInterval(poll, 3000);
+
+// ---------- rendering ----------
+function render() { renderList(); renderMain(); updateMenus(); }
+
+function renderList() {
+  const box = $('#pdulist');
+  box.replaceChildren(...pdus.map(p => h('div', {
+    class: 'pdu' + (p.id === selectedId ? ' sel' : ''),
+    onclick: () => { selectedId = p.id; localStorage.setItem('selectedPdu', p.id); render(); },
+  }, h('span', { class: 'dot ' + (p.online ? 'ok' : 'bad') }), p.name)));
+  $('#btnRemove').disabled = $('#btnEdit').disabled = !current();
+}
+
+let builtFor = null;
+function renderMain() {
+  const main = $('#main'), p = current();
+  if (!p) { builtFor = null; main.replaceChildren(h('div', { id: 'empty' }, 'No PDU yet. Use File → Add PDU…')); return; }
+
+  if (builtFor !== p.id) {           // build the skeleton once per selected PDU, then update in place
+    builtFor = p.id;
+    const tbody = h('tbody');
+    p.outlets.forEach(o => tbody.append(buildRow(p, o)));
+    main.replaceChildren(
+      h('div', { id: 'head' }, h('div', { class: 'status', id: 'hStatus' }), h('div', { class: 'readings', id: 'hRead' }), h('div', { id: 'hEvents' })),
+      h('table', {}, h('thead', {}, h('tr', {}, ...['Sel', '#', 'Outlet', 'Power', '', 'Monitor IP / host', 'Device', 'Auto Power-Off'].map(t => h('th', {}, t)))), tbody));
+  }
+  $('#hEvents').replaceChildren(...(p.events ?? []).slice(0, 3).map(e => h('div', {}, `${new Date(e.time).toLocaleTimeString()}  ${e.text}`)));
+
+  $('#hStatus').textContent = p.online ? `${p.name} — online ${new Date(p.lastOk).toLocaleTimeString()}` : `${p.name} — ${p.error ?? 'connecting…'}`;
+  $('#hStatus').style.color = p.online ? '' : 'var(--off)';
+  const r = p.readings, hr = $('#hRead');
+  hr.textContent = r ? `Total load: ${r.current} A    Temperature: ${r.temperature} °C    Humidity: ${r.humidity} %    PDU status: ${r.status}` : '';
+  hr.classList.toggle('alarm', !!r?.alarm);
+
+  p.outlets.forEach(o => {
+    const tr = $(`tr[data-i="${o.index}"]`); if (!tr) return;
+    tr.classList.toggle('stale', !p.online);
+    $('.name', tr).textContent = o.name;
+    const st = $('.state', tr);
+    st.textContent = o.isOn === true ? 'ON' : o.isOn === false ? 'OFF' : '?';
+    st.className = 'state ' + (o.isOn === true ? 'on' : o.isOn === false ? 'off' : 'unk');
+    $('.toggle', tr).textContent = o.isOn === true ? 'Turn OFF' : 'Turn ON';
+    $('.toggle', tr).disabled = $('.cycle', tr).disabled = !p.online;
+    const inp = $('input[type=text]', tr);
+    if (document.activeElement !== inp) inp.value = o.boundIp;
+    const dev = $('.dev', tr);
+    dev.textContent = !o.boundIp ? '' : o.deviceUp === true ? 'UP' : o.deviceUp === false ? 'DOWN' : '…';
+    dev.className = 'dev ' + (o.deviceUp === true ? 'up' : o.deviceUp === false ? 'down' : '');
+    const auto = $('.autocb', tr);
+    if (!auto.dataset.busy) auto.checked = o.autoOff;
+    const tag = $('.armed', tr);
+    tag.textContent = !o.autoOff ? '' : !p.online ? '' : o.isOn !== true ? 'waiting for power' : o.armed ? 'armed' : 'waiting for device';
+    tag.classList.toggle('on', o.autoOff && o.armed && o.isOn === true);
+  });
+}
+
+function buildRow(p, o) {
+  const key = `${p.id}:${o.index}`;
+  const cb = h('input', { type: 'checkbox', onchange: e => e.target.checked ? ticked.add(key) : ticked.delete(key) });
+  cb.checked = ticked.has(key);
+  const ip = h('input', { type: 'text', placeholder: 'e.g. 192.168.1.10', 'aria-label': 'Monitor IP', onchange: async e => {
+    try { await api('PUT', `/pdus/${p.id}/bindings/${o.index}`, { ip: e.target.value }); poll(); }
+    catch (err) { toast(err.message); }
+  } });
+  return h('tr', { 'data-i': o.index },
+    h('td', {}, cb), h('td', { class: 'num' }, o.index), h('td', { class: 'name' }),
+    h('td', {}, h('span', { class: 'state' })),
+    h('td', {}, h('div', { class: 'btns' },
+      h('button', { class: 'toggle', onclick: () => {
+        const cur = current().outlets[o.index]; control([o.index], cur.isOn === true ? 'off' : 'on'); } }),
+      h('button', { class: 'cycle', onclick: () => control([o.index], 'cycle') }, 'Cycle'))),
+    h('td', {}, ip), h('td', {}, h('span', { class: 'dev' })),
+    h('td', { class: 'auto' }, autoCb(p, o), h('span', { class: 'armed' })));
+}
+
+function autoCb(p, o) {
+  return h('input', { type: 'checkbox', class: 'autocb', 'aria-label': 'Auto Power-Off', title: 'Switch this outlet off when the monitored device goes down', onchange: async e => {
+    const cb = e.target, enable = cb.checked, out = current()?.outlets[o.index];
+    cb.dataset.busy = '1';
+    try {
+      if (enable) {
+        if (!out?.boundIp) throw new Error('Set a monitor IP for this outlet first.');
+        if (!confirm(`Auto Power-Off for '${out.name}':\n\nWhen ${out.boundIp} has answered pings and then stops answering for about 30 seconds, this outlet is switched OFF automatically.\n\nA device that merely loses network connectivity will also be switched off. Enable?`))
+          throw new Error('');
+      }
+      await api('PUT', `/pdus/${p.id}/autooff/${o.index}`, { enabled: enable });
+      await poll();
+    } catch (err) { cb.checked = !enable; if (err.message) toast(err.message); }
+    finally { delete cb.dataset.busy; }
+  } });
+}
+
+// ---------- outlet control ----------
+async function control(indexes, op) {
+  const p = current(); if (!p) return;
+  if (!indexes.length) { toast('No outlets ticked.'); return; }
+  const verb = { on: 'Turn ON', off: 'Turn OFF', cycle: 'Power-cycle (ON/OFF)' }[op];
+  const outs = indexes.map(i => p.outlets[i]);
+  let msg = `${verb} on ${p.name}:\n${outs.map(o => o.name).join(', ')}?`;
+  const bound = op === 'on' ? [] : outs.filter(o => o.boundIp).map(o => o.boundIp);
+  if (bound.length) msg += `\n\nThis cuts power to: ${bound.join(', ')}`;
+  if (!confirm(msg)) return;
+  try { await api('POST', `/pdus/${p.id}/control`, { outlets: indexes, op }); toast('Done.'); }
+  catch (e) { toast(e.message); }
+  poll();
+}
+const tickedIdx = () => (current()?.outlets ?? []).filter(o => ticked.has(`${selectedId}:${o.index}`)).map(o => o.index);
+const allIdx = () => (current()?.outlets ?? []).map(o => o.index);
+
+// ---------- dialogs ----------
+function openModal(content, wide = false) {
+  const m = $('#modal'); m.className = 'modal' + (wide ? ' wide' : '');
+  m.replaceChildren(...content); $('#overlay').classList.add('show');
+  const first = m.querySelector('input:not([readonly])'); first?.focus();
+}
+function closeModal() { $('#overlay').classList.remove('show'); }
+$('#overlay').addEventListener('mousedown', e => { if (e.target.id === 'overlay') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeMenus(); } });
+
+/** Shows a dialog; `onApply` returns nothing on success or throws Error(message). */
+function dialog({ title, note, rows, applyLabel = 'Apply', wide = false, onApply }) {
+  const msg = h('div', { class: 'msg' });
+  const apply = h('button', { class: 'primary' }, applyLabel);
+  const run = async () => {
+    apply.disabled = true; msg.className = 'msg'; msg.textContent = 'Working…';
+    try { await onApply(); closeModal(); toast('Saved.'); poll(); }
+    catch (e) { msg.className = 'msg err'; msg.textContent = e.message; apply.disabled = false; }
+  };
+  apply.addEventListener('click', run);
+  const form = h('form', { onsubmit: e => { e.preventDefault(); if (!apply.disabled) run(); } },
+    ...rows, msg,
+    h('div', { class: 'actions' }, apply, h('button', { type: 'button', onclick: closeModal }, 'Cancel')));
+  openModal([h('h2', {}, title), note ? h('p', { class: 'note' }, note) : null, form], wide);
+}
+function field(name, label, o = {}) {
+  const input = h('input', { type: o.type ?? 'text', name, maxlength: o.max, readonly: o.readonly, autocomplete: 'off',
+    ...(o.type === 'number' ? { step: 'any', min: o.min, max: o.rangeMax } : {}) });
+  input.value = o.value ?? '';
+  return { el: h('div', { class: 'row' }, h('label', {}, label), input), input };
+}
+
+// Add PDU
+function addPduDialog(existing = null) {
+  const f = { name: field('name', 'Name', { value: existing?.name }), host: field('host', 'Host / IP', { value: existing?.host }),
+    port: field('port', 'Port', { value: existing?.port ?? '80', type: 'number' }),
+    user: field('user', 'Username', { value: existing?.user }), pass: field('pass', 'Password', { type: 'password' }) };
+  const body = () => ({ id: existing?.id, name: f.name.input.value, host: f.host.input.value, port: +f.port.input.value, username: f.user.input.value, password: f.pass.input.value });
+  const test = h('button', { type: 'button' }, 'Test connection');
+  const result = h('span', { class: 'note' });
+  test.addEventListener('click', async () => {
+    result.textContent = 'Testing…';
+    try { const r = await api('POST', '/pdus/test', body()); result.textContent = `OK — found ${r.outlets} outlets.`; }
+    catch (e) { result.textContent = 'Failed: ' + e.message; }
+  });
+  const note = existing
+    ? (existing.needsLogin
+        ? 'The stored login cannot be read on this computer/Windows user. Enter the username and password again.'
+        : 'Leave the password empty to keep the stored one.')
+    : 'Credentials are sent to the local server and stored encrypted with Windows DPAPI.';
+  dialog({ title: existing ? `Edit PDU — ${existing.name}` : 'Add PDU', note, applyLabel: existing ? 'Save' : 'Add',
+    rows: [...Object.values(f).map(x => x.el), h('div', {}, test, ' ', result)],
+    onApply: async () => {
+      if (existing) { await api('PUT', `/pdus/${existing.id}`, body()); builtFor = null; return; }
+      const p = await api('POST', '/pdus', body()); selectedId = p.id; localStorage.setItem('selectedPdu', p.id);
+    } });
+}
+const editPdu = () => { const p = current(); if (p) addPduDialog(p); };
+
+// Generic settings pages (thresholds / network / system)
+const PAGES = {
+  thresholds: { title: 'Threshold values', fields: [
+    ['wrncur', 'Current warning (A)', { type: 'number', min: 0, rangeMax: 100 }], ['ovrcur', 'Current overload (A)', { type: 'number', min: 0, rangeMax: 100 }],
+    ['wrnvol', 'Voltage warning (V)', { type: 'number', min: 0 }], ['ovrvol', 'Voltage overload (V)', { type: 'number', min: 0 }],
+    ['wrntp1', 'Temperature under (°C)', { type: 'number', min: 0, rangeMax: 50 }], ['wrntp2', 'Temperature above (°C)', { type: 'number', min: 0, rangeMax: 50 }],
+    ['wrnhum', 'Humidity warning (%)', { type: 'number', min: 20, rangeMax: 90 }]] },
+  network: { title: 'Network settings', note: 'Wrong values can make the PDU unreachable. A changed IP address takes effect on the PDU immediately.', fields: [
+    ['host', 'Host name', { max: 14 }], ['dhcp', 'Enable DHCP', { check: true }], ['ip', 'IP address'], ['mask', 'Subnet mask'],
+    ['gate', 'Gateway'], ['dns1', 'Primary DNS'], ['dns2', 'Secondary DNS']] },
+  system: { title: 'System information', fields: [
+    ['@model', 'Product model', { readonly: true }], ['@firmware', 'Firmware version', { readonly: true }], ['@mac', 'MAC address', { readonly: true }],
+    ['sysnm', 'System name', { max: 15 }], ['admin', 'Administrator', { max: 15 }], ['loc', 'System location', { max: 15 }]] },
+};
+async function pageDialog(kind) {
+  const p = current(); if (!p) return;
+  let data;
+  try { data = await api('GET', `/pdus/${p.id}/forms/${kind}`); } catch (e) { toast(e.message); return; }
+  const def = PAGES[kind], inputs = {};
+  const rows = def.fields.map(([name, label, o = {}]) => {
+    if (o.check) {
+      const cb = h('input', { type: 'checkbox', name }); cb.checked = !!data.values[name]; inputs[name] = cb;
+      cb.addEventListener('change', sync);
+      return h('div', { class: 'row check' }, h('label', {}, cb, ' ', label));
+    }
+    const v = name.startsWith('@') ? data.info?.[name.slice(1)] : data.values[name];
+    const f = field(name, label, { ...o, value: v ?? '' }); inputs[name] = f.input; return f.el;
+  });
+  function sync() {   // static IP fields are not used under DHCP
+    const dhcp = inputs.dhcp?.checked;
+    ['ip', 'mask', 'gate', 'dns1', 'dns2'].forEach(n => { if (inputs[n]) inputs[n].disabled = !!dhcp; });
+  }
+  dialog({ title: `${def.title} — ${p.name}`, note: def.note, rows, onApply: async () => {
+    const values = {};
+    for (const [name, , o = {}] of def.fields) {
+      if (name.startsWith('@') || o.readonly) continue;
+      if (inputs[name].disabled) continue;
+      values[name] = o.check ? inputs[name].checked : inputs[name].value.trim();
+    }
+    await api('POST', `/pdus/${p.id}/forms/${kind}`, { values });
+    if (kind === 'network') builtFor = null;
+  } });
+  sync();
+}
+
+// Outlet names & delays
+async function outletsDialog() {
+  const p = current(); if (!p) return;
+  let data;
+  try { data = await api('GET', `/pdus/${p.id}/forms/outlets`); } catch (e) { toast(e.message); return; }
+  const cell = (n, max, type = 'text') => { const i = h('input', { type, name: n, maxlength: max, autocomplete: 'off', ...(type === 'number' ? { min: 0, max: 999 } : {}) }); i.value = data.values[n] ?? ''; return i; };
+  const grid = [];
+  const tbody = h('tbody');
+  for (let i = 0; i < 8; i++) {
+    const r = [cell(`otlt${i}`, 11), cell(`ondly${i}`, 3, 'number'), cell(`ofdly${i}`, 3, 'number')];
+    grid.push(r);
+    tbody.append(h('tr', {}, h('td', { class: 'num' }, i), ...r.map(x => h('td', {}, x))));
+  }
+  dialog({ title: `Outlet names & delays — ${p.name}`, note: 'Names: max 11 characters. Delays in seconds (0–999).', wide: true,
+    rows: [h('table', {}, h('thead', {}, h('tr', {}, ...['#', 'Outlet name', 'ON delay (s)', 'OFF delay (s)'].map(t => h('th', {}, t)))), tbody)],
+    onApply: async () => {
+      const values = {};
+      grid.forEach(r => r.forEach(inp => values[inp.name] = inp.value.trim()));
+      await api('POST', `/pdus/${p.id}/forms/outlets`, { values });
+    } });
+}
+
+// Change the PDU's own login
+function loginDialog() {
+  const p = current(); if (!p) return;
+  const f = { ou: field('oldUser', 'Current user name', { max: 15 }), op: field('oldPass', 'Current password', { type: 'password', max: 11 }),
+    nu: field('newUser', 'New user name', { max: 15 }), np: field('newPass', 'New password', { type: 'password', max: 11 }),
+    cp: field('confirm', 'Confirm password', { type: 'password', max: 11 }) };
+  dialog({ title: `Change PDU login — ${p.name}`,
+    note: 'Changes the user name and password of the PDU\'s web interface (password max 11 characters). The stored credentials here are updated automatically.',
+    rows: Object.values(f).map(x => x.el),
+    onApply: async () => {
+      if (f.np.input.value !== f.cp.input.value) throw new Error('The new passwords do not match.');
+      await api('POST', `/pdus/${p.id}/login`, { oldUser: f.ou.input.value, oldPass: f.op.input.value, newUser: f.nu.input.value, newPass: f.np.input.value });
+    } });
+}
+
+async function removePdu() {
+  const p = current(); if (!p) return;
+  if (!confirm(`Remove '${p.name}' and its stored credentials?`)) return;
+  try { await api('DELETE', `/pdus/${p.id}`); selectedId = null; builtFor = null; } catch (e) { toast(e.message); }
+  poll();
+}
+
+// ---------- menu bar ----------
+const MENUS = [
+  ['File', [
+    ['Add PDU…', () => addPduDialog(), false], ['Edit selected PDU… (name, address, login)', editPdu, true],
+    ['Remove selected PDU', removePdu, true], '-',
+    ['Refresh now', () => poll(), false]]],
+  ['Outlets', [
+    ['All ON', () => control(allIdx(), 'on'), true], ['All OFF', () => control(allIdx(), 'off'), true], '-',
+    ['Ticked outlets: ON', () => control(tickedIdx(), 'on'), true], ['Ticked outlets: OFF', () => control(tickedIdx(), 'off'), true],
+    ['Ticked outlets: power-cycle (ON/OFF)', () => control(tickedIdx(), 'cycle'), true], '-',
+    ['Rename outlets & set delays…', outletsDialog, true]]],
+  ['Settings', [
+    ['Threshold values (current, voltage, temperature, humidity)…', () => pageDialog('thresholds'), true],
+    ['Network (IP, DHCP, DNS)…', () => pageDialog('network'), true],
+    ['System (name, administrator, location)…', () => pageDialog('system'), true],
+    ['Change PDU login…', loginDialog, true], '-',
+    ['Open PDU web interface in new tab', () => { const p = current(); if (p) window.open(`http://${p.host}:${p.port}/`, '_blank', 'noopener'); }, true]]],
+  ['Help', [['About', () => alert('PDU Manager (web)\nControls Inter-Tech ARGUS SW-0816 PDUs through their web interface.\nPDU credentials are stored encrypted with Windows DPAPI. Runs on localhost only.'), false]]],
+];
+const menuItems = [];
+function closeMenus() { document.querySelectorAll('.menu.open').forEach(m => m.classList.remove('open')); }
+function buildMenus() {
+  const bar = $('#menubar');
+  for (const [title, items] of MENUS) {
+    const dd = h('div', { class: 'dropdown' });
+    for (const it of items) {
+      if (it === '-') { dd.append(h('hr')); continue; }
+      const [label, fn, needsPdu] = it;
+      const b = h('button', { type: 'button', onclick: () => { closeMenus(); fn(); } }, label);
+      menuItems.push([b, needsPdu]); dd.append(b);
+    }
+    const m = h('div', { class: 'menu' }, h('button', { type: 'button', onclick: e => {
+      const open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); } }, title), dd);
+    bar.append(m);
+  }
+  document.addEventListener('click', closeMenus);
+}
+function updateMenus() { menuItems.forEach(([b, needs]) => b.disabled = needs && !current()); }
+
+$('#btnAdd').addEventListener('click', () => addPduDialog());
+$('#btnEdit').addEventListener('click', editPdu);
+$('#btnRemove').addEventListener('click', removePdu);
+buildMenus();
+poll();
+</script>
+</body>
+</html>
